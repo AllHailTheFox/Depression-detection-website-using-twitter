@@ -280,7 +280,10 @@ def Scrape():
 @app.route('/Results',methods=["GET"], endpoint='Results')
 def Results():
     return render_template('Results.html')
-    
+
+
+if __name__ == "__main__":
+    app.run()
 
 
 
