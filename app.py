@@ -7,7 +7,7 @@ import numpy as np
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
 
-app= Flask(__name__, static_folder="/Logo")
+app= Flask(__name__)
 app.config['SECRET_KEY']="my super secret key"
 
 def strip_alphabet(s):
