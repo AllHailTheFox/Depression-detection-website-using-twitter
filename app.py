@@ -6,6 +6,9 @@ import nltk
 import numpy as np
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
+from rq import Queue
+from worker import conn
+import redis
 
 app= Flask(__name__)
 app.config['SECRET_KEY']="my super secret key"
@@ -78,7 +81,13 @@ def main():
     return render_template('home.html')
     
     
-@app.route('/',methods=["POST"],endpoint='Scrape')
+@app.route('/',methods=["POST"],endpoint='test')
+def test():
+    q = Queue(connection=conn)
+
+    # Queue reset nlp
+    q.enqueue(Scrape(), result_ttl=0, job_timeout=6000)
+
 def Scrape():
     if request.method == "POST":
 
