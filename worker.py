@@ -5,9 +5,9 @@ from rq import Worker, Queue, Connection
 
 listen = ['high', 'default', 'low']
 
-REDIS_DEFAULT_CONNECTION_POOL = redis.ConnectionPool.from_url(os.getenv('REDIS_URL', 'redis://localhost:6379/'))
+redis_url = redis.from_url(os.environ['REDISCLOUD_URL'])
 
-conn = redis.from_url(REDIS_DEFAULT_CONNECTION_POOL)
+conn = redis.from_url(redis_url)
 
 if __name__ == '__main__':
     with Connection(conn):
