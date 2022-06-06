@@ -7,6 +7,7 @@ This project is an implementation on https://github.com/BerniceYeow/AnApplicatio
 
 *Note*<br>
 Deployment of the website on heroku still needs to be worked on.
-Additonal addons need to heroku:<br>
+Additonal add-ons needed for heroku:<br>
 -Redis Queue<br>
 -SQLite3
+-A login system
