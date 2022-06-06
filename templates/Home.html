@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+    #footer {
+        position: fixed;
+        padding: 10px 10px 0px 10px;
+        bottom: 0;
+        width: 100%;
+        height: 70px;
+        background: grey;
+        text-align: center;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .topnav {
+      overflow: hidden;
+      background-color: #003473;
+    }
+
+    input[type=submit] {
+    width: 50%;
+    background-color: #4CAF50;
+    color: white;
+    padding: 14px 20px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    }
+
+    .container {
+    border-radius: 5px;
+    background-color: #f2f2f2;
+    padding: 20px;
+    }
+
+    input[type=submit]:hover {
+    background-color: #45a049;
+    }
+
+    input[type=text], select {
+    width: 50%;
+    padding: 12px 20px;
+    margin: 8px 0;
+    display: inline-block;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    }
+
+    .floated{
+      float:left;
+      margin-right: 5px;
+    }
+    .slidecontainer {
+    width: 100%;
+    }
+
+    .slider {
+      -webkit-appearance: none;
+      width: 50%;
+      height: 25px;
+      background: #d3d3d3;
+      outline: none;
+      opacity: 0.7;
+      -webkit-transition: .2s;
+      transition: opacity .2s;
+    }
+
+    .slider:hover {
+      opacity: 1;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 25px;
+      background: #04AA6D;
+      cursor: pointer;
+    }
+
+    .slider::-moz-range-thumb {
+      width: 10px;
+      height: 25px;
+      background: #04AA6D;
+      cursor: pointer;
+    }
+    </style>
+
+
+    <meta charset="UTF-8">
+    <title>Depression Test</title>
+</head>
+
+<body>
+  <div class="topnav">
+    <a href="https://university.sunway.edu.my/" ><img src="https://university.sunway.edu.my/sites/default/files/Sunway-University-logo-legacy-type-03.png" width="180" height="80" ></a>
+  </div>
+
+
+    <div class="Filler"> 
+        <br>
+        <br>
+    </div>
+
+  <div class="container">
+      <div class="container-lg", style="text-align:center">
+
+          <h1>Test if you're depressed using Twitter </h1>
+          <form method="POST" class="form" >
+              <input type="text" name="input" placeholder="Enter Your Tweeter id(without @) " id="text" size="28">
+              <br>
+              <input type="range" name="Number" min="1" max="50" value="25" class="slider" id="myRange">
+              <p>Will Scrape the first <span id="demo"></span> tweets</p>
+              <script>
+                var slider = document.getElementById("myRange");
+                var output = document.getElementById("demo");
+                output.innerHTML = slider.value;
+                
+                slider.oninput = function() {
+                  output.innerHTML = this.value;
+                }
+                </script>
+              <input type="submit" name="submit" id="btn" href="{{url_for('Scrape_and_Classify')}}">
+          </form>
+      
+      <h1 class="output">
+          {{message}}
+      </h1>
+      
+      </div> 
+  </div>
+
+  <div id="footer">
+    <footer>  
+      <p>Developer: Ervyn Pang Zhen Jun </p> 
+      <p>Student ID: 17110990</p>
+    </footer>
+  </div>
+</body>
+</html>

@@ -22,17 +22,6 @@
       background-color: #003473;
     }
 
-    input[type=submit] {
-    width: 50%;
-    background-color: #4CAF50;
-    color: white;
-    padding: 14px 20px;
-    margin: 8px 0;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    }
-
     .container {
     border-radius: 5px;
     background-color: #f2f2f2;
@@ -57,6 +46,11 @@
       float:left;
       margin-right: 5px;
     }
+    .btn.Graphbtn {
+      letter-spacing: 0.5px;
+      padding-left: 9.5px;
+      margin-left: 14.5px;
+    }
     </style>
 
 
@@ -70,15 +64,40 @@
   </div>
 
 
-    <div class="Filler"> <br><br></div>
+    <div class="Filler"> 
+        <br>
+        <br>
+    </div>
 
   <div class="container">
-
       <div class="container-lg", style="text-align:center">
-        <img src="data:image/png;base64, {{ user_image }}">
-        <form method="POST" class="form" >
-            <input type="submit"  name="submit_button" value="Back to graph">
-        </form>      
+
+          <h1>Press the button below to see your graph</h1>
+          <form method="POST">
+            <p>
+              <input type="submit" class="Graphbtn" name="submit_button" value="Positve word cloud">
+              <input type="submit" class="Graphbtn" name="submit_button" value="Negative word cloud">
+            </p>
+            
+            <p>
+              <input type="submit" class="Graphbtn" name="submit_button" value="Time graph for depressive words">
+              <input type="submit" class="Graphbtn" name="submit_button" value="Total number of positive and negative words">
+            </p>
+              
+          </form>
+          <div>
+            <h1>
+              {% with messages = get_flashed_messages(category_filter=["category1"]) %}
+                {% if messages %}
+                  <ul class=flashes>
+                  {% for message in messages %}
+                    {{ message }}
+                  {% endfor %}
+                  </ul>
+                {% endif %}
+              {% endwith %}
+            </h1>
+          </div>
       </div> 
   </div>
 
@@ -88,5 +107,7 @@
       <p>Student ID: 17110990</p>
     </footer>
   </div>
+
+</div>
 </body>
 </html>
