@@ -5,8 +5,8 @@ The goal for this project is to use a Flask webframework and Snscraper to scrape
 
 This project is an implementation on https://github.com/BerniceYeow/AnApplicationForClassifyingDepression and to identify if such a tool is necessary or will help diagnosing depression with a quick and easy method. 
 
-*Note
-Deployment of the website on heroku needs to be worked on.
-Additonal addons need to heroku:
--Redis Queue
+*Note*<br>
+Deployment of the website on heroku still needs to be worked on.
+Additonal addons need to heroku:<br>
+-Redis Queue<br>
 -SQLite3
