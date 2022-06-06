@@ -1,4 +1,7 @@
-from flask import Flask, flash, render_template, request
+import base64
+from io import BytesIO
+import os
+from flask import Flask, flash, render_template, request,redirect
 import snscrape.modules.twitter as sntwitter
 import pandas as pd
 import string
@@ -6,13 +9,14 @@ import nltk
 import numpy as np
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
-from rq import Queue
-from worker import conn
-import redis
+import sqlite3 as sql
+
 
 app= Flask(__name__)
 app.config['SECRET_KEY']="my super secret key"
 
+
+#Strip alphabet that occuring more than twice in the text
 def strip_alphabet(s):
     # counter
     prev_alpha=""
@@ -75,51 +79,37 @@ def strip_alphabet(s):
         return s
 
 
-
-@app.route('/',methods=["GET"], endpoint='main')
-def main():
-    return render_template('home.html')
-    
-    
-@app.route('/',methods=["POST"],endpoint='test')
-def test():
-    q = Queue(connection=conn)
-
-    # Queue reset nlp
-    q.enqueue(Scrape(), result_ttl=0, job_timeout=6000)
-
-def Scrape():
+@app.route('/',methods=["GET","POST"], endpoint='Scrape_and_Classify')
+def Scrape_and_Classify():
     if request.method == "POST":
 
-        # Creating list to append tweet data to
         tweets_list1 = []
-        
+
+        #Check if the user got enter in any name and get the number of tweets to scrape
         username=request.form.get("input")
         if username == "":
             username="There is no name here"
         else:
             username=request.form.get("input")
-        useriddetails='from:'+username
+        useriddetails="from:"+username
+
+        Ntweets=int(request.form.get("Number"))
 
         # Using TwitterSearchScraper to scrape data and append tweets to list
         for i,tweet in enumerate(sntwitter.TwitterSearchScraper(useriddetails).get_items()):
-            if i>30:
+            if i>Ntweets:
                 break
             tweets_list1.append([tweet.date, tweet.id, tweet.content, tweet.user.username])
             
         # Creating a dataframe from the tweets list above 
-        tweets_df1 = pd.DataFrame(tweets_list1, columns=['Datetime', 'Tweet Id', 'Text', 'Username'])
-        
+        tweets_df1 = pd.DataFrame(tweets_list1, columns=["Datetime", "Tweet Id", "Text", "Username"])
 
-        tweets_df1.to_csv('Original.csv')
-        #Check if the dataframe is empty
+        #Check if the dataframe is empty due to no twitter user found and output message if empty 
         if tweets_df1.shape[0] == 0:
-            return render_template("home.html",message="No User was found")
+            return render_template("Home.html",message="No User was found")
 
-        
-
-        tweets_df1['Text'] = tweets_df1["Text"].map(lambda x: x if type(x)!=str else x.lower())
-
+        #Lower all the text so they can be replace to full contraction 
+        tweets_df1["Text"] = tweets_df1["Text"].map(lambda x: x if type(x)!=str else x.lower())
 
         contraction_dict = {"'cause": ' because', "ain't": ' is not', "aren't": ' are not', "can't": ' cannot', "could've": ' could have', "couldn't": ' could not', "didn't": ' did not', "doesn't": ' does not',
                 "don't": ' do not', "hadn't": ' had not', "hasn't": ' has not', "haven't": ' have not', "he'd": ' he would', "he'll": ' he will', "he's": ' he is', "here's": ' here is', "how'd": ' how did', "how'd'y": ' how do you', 
@@ -140,20 +130,18 @@ def Scrape():
         for index, row in tweets_df1.iterrows():
             #Replace words in dictionary
             for key, value in contraction_dict.items():
-                tweets_df1['Text'] = tweets_df1['Text'].replace(contraction_dict, regex=True)
+                tweets_df1["Text"] = tweets_df1["Text"].replace(contraction_dict, regex=True)
 
             #Remove emoji and https links at the end
-            tweets_df1['Text'] = tweets_df1['Text'].str.replace(r'[^\x00-\x7F]+', '', regex=True)
-            tweets_df1['Text'] = tweets_df1["Text"].str.replace(r'\s*https?://\S+(\s+|$)', '', regex=True).str.strip()
-            tweets_df1['Text'] = tweets_df1['Text'].str.replace('[{}]'.format(string.punctuation), '')
+            tweets_df1["Text"] = tweets_df1["Text"].str.replace(r'[^\x00-\x7F]+', '', regex=True)
+            tweets_df1["Text"] = tweets_df1["Text"].str.replace(r'\s*https?://\S+(\s+|$)', '', regex=True).str.strip()
+            tweets_df1["Text"] = tweets_df1["Text"].str.replace('[{}]'.format(string.punctuation), '', regex=True)
             
             #Strip alphabet that occurs more than 2 times
             tweets_df1["Text"]=tweets_df1["Text"].apply(strip_alphabet)
 
 
 
-
-        tweets_df1.to_csv('Cleaned.csv')
         #Here start classifying
         neg_file = open("negative_words2 rated 4 and 5NEW.txt")
         neg_file_contents = neg_file.read()
@@ -164,7 +152,7 @@ def Scrape():
         pos_contents_split = pos_file_contents.splitlines()
 
         #Break up sentence
-        tweets_df1['tokenized_sents'] = tweets_df1.apply(lambda row: nltk.word_tokenize(row['Text']), axis=1)
+        tweets_df1["tokenized_sents"] = tweets_df1.apply(lambda row: nltk.word_tokenize(row['Text']), axis=1)
 
 
         #Check if the words is in the positive/negative wordlist and increase the counter and store the words into a new column if it exist.
@@ -176,125 +164,195 @@ def Scrape():
             pos_word_exist=""
 
             for value in pos_contents_split:
-                if value in row['tokenized_sents']:
+                if value in row["tokenized_sents"]:
                     sum=sum+1
                     pos_sum=pos_sum+1
                     pos_word_exist +=value
                     pos_word_exist +=" "     
-            tweets_df1.at[index, 'Pos'] = pos_sum
-            tweets_df1.at[index, 'Pos_words_exist']=pos_word_exist
+            tweets_df1.at[index, "Pos"] = pos_sum
+            tweets_df1.at[index, "Pos_words_exist"]=pos_word_exist
 
             for value in neg_contents_split:
-                if value in row['tokenized_sents']:
+                if value in row["tokenized_sents"]:
                     sum=sum-1
                     neg_sum=neg_sum-1
                     neg_words_exist +=value
                     neg_words_exist +=" " 
-            tweets_df1.at[index, 'Neg'] = neg_sum
-            tweets_df1.at[index, 'Neg_words_exist']=neg_words_exist
+            tweets_df1.at[index, "Neg"] = neg_sum
+            tweets_df1.at[index, "Neg_words_exist"]=neg_words_exist
             tweets_df1.at[index,"Final sum"]=sum
 
-            words = tweets_df1['Text'].str.split().map(len)
-            tweets_df1['number_of_words'] = words
-            tweets_df1['score']=(tweets_df1['Final sum']/tweets_df1['number_of_words'])
+            words = tweets_df1["Text"].str.split().map(len)
+            tweets_df1["number_of_words"] = words
+            tweets_df1["score"]=(tweets_df1["Final sum"]/tweets_df1["number_of_words"])
 
+
+            #if score is below a range label it as depressed, not depressed or neutral 
             conditions = [
-                        (tweets_df1['score'] >= 0.2),
-                        (tweets_df1['score'] > 0.2) & (tweets_df1['score'] < -0.5),
-                        (tweets_df1['score'] <= -0.5)
+                        (tweets_df1["score"] >= 0.2),
+                        (tweets_df1["score"] > 0.2) & (tweets_df1['score'] < -0.5),
+                        (tweets_df1["score"] <= -0.5)
                         ]
 
-            values = ['1', '0', '-1']
+            values = ["1", "0", "-1"]
 
-            tweets_df1['Label'] = np.select(conditions, values)
+            tweets_df1["Label"] = np.select(conditions, values)
+
+        #This is necessary to store into database
+        tweets_df1.to_csv("Storetodb.csv")
+        
+        conn = sql.connect("depression.db")
+        c= conn.cursor()
+        c.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' ''')
+
+        #if the count is 1, then table exists and drop the table 
+        if c.fetchone()[0]==1 : {
+            c.execute("DROP TABLE depression")
+        }
+
+        #Store dataframe into database by loading the csv and droping the index column
+        tweets_df1 = pd.read_csv("Storetodb.csv")
+        tweets_df1.drop(tweets_df1.columns[[0]], axis=1, inplace=True)
+        tweets_df1.to_sql("depression",conn)
+
+        return redirect(f"/Graph")
+    return render_template("Home.html")
 
 
-        tweets_df1.to_csv('Finalized.csv')
 
 
-        #Generating Graphs
-        # For Positive words
-        Cloudpos = tweets_df1["Pos_words_exist"]
-        Cloudpos.replace('', np.nan, inplace=True)
-        Cloudpos.dropna(inplace=True)
-
-        # For Negative words
-        Cloudneg = tweets_df1["Neg_words_exist"]
-        Cloudneg.replace('', np.nan, inplace=True)
-        Cloudneg.dropna(inplace=True)
+@app.route('/Graph',methods=["GET","POST"], endpoint="Graph")
+def Graph():
+    if request.method == "POST":
+        #open the connection and get the data from the database
+        conn = sql.connect("depression.db")
+        tweets_df1 = pd.read_sql_query("SELECT * from depression", conn)
         
 
-        stopwords = set(STOPWORDS)
-        stopwords.update(["Neg_words_exist","Pos_words_exist","float64", "Name", "object", "dtype"])
+        img = BytesIO()
 
+        if request.form["submit_button"] == "Positve word cloud":
+            # For Positive words
+            Cloudpos = tweets_df1["Pos_words_exist"]
+            Cloudpos.replace("", np.nan, inplace=True)
+            Cloudpos.dropna(inplace=True)
+
+            stopwords = set(STOPWORDS)
+            stopwords.update(["Neg_words_exist","Pos_words_exist","float64", "Name", "object", "dtype"])
+
+            
+            # Display the generated image:
+            if Cloudpos.shape[0] == 0:
+                flash("No Positive words was found", "category1")
+            else:
+                poswordcloud = WordCloud(stopwords=stopwords).generate(str(Cloudpos))
+                plt.imshow(poswordcloud, interpolation='bilinear')
+                plt.axis("off")
+                
+                #Save the image and return it to the website
+                plt.savefig(img, format='png')
+                plt.close()
+                img.seek(0)
+                plot_url = base64.b64encode(img.getvalue()).decode('utf8')
+
+                return render_template('Results.html', user_image = plot_url)
+
+
+        if request.form["submit_button"] == "Negative word cloud":
+            # For Negative words
+            Cloudneg = tweets_df1["Neg_words_exist"]
+            Cloudneg.replace('', np.nan, inplace=True)
+            Cloudneg.dropna(inplace=True)
+            
+
+            stopwords = set(STOPWORDS)
+            stopwords.update(["Neg_words_exist","Pos_words_exist","float64", "Name", "object", "dtype"])
+
+
+            if Cloudneg.shape[0] == 0:
+                flash("No Depressive words found", "category1")
+            else:
+                negwordcloud = WordCloud(stopwords=stopwords).generate(str(Cloudneg))
+                plt.imshow(negwordcloud, interpolation="bilinear")
+                plt.axis("off")
+                plt.savefig(img, format="png")
+                plt.close()
+                img.seek(0)
+                plot_url = base64.b64encode(img.getvalue()).decode("utf8")
+
+                return render_template("Results.html", user_image = plot_url)
+
+            
+
+
+
+
+
+
+        if request.form["submit_button"] == "Time graph for depressive words":
+            timegraph=tweets_df1[["score", "Datetime", "Pos", "Neg", "number_of_words"]]
+            timegraph.rename(columns={"Pos": "Number of Positive words", "Neg": "Number of Negative words", "number_of_words":"Total number of words", "Datetime":"Date"}, inplace=True)
+
+
+            for index in timegraph.iterrows():
+                timegraph["Date"] = timegraph["Date"].astype(str).str[:10]
+                timegraph["Date"] = timegraph["Date"].str.replace('T',' ')
+                timegraph["Date"] = timegraph["Date"].str.replace('-','/')
+                timegraph.sort_values(by="Date", inplace=True)
+                timegraph["Number of Negative words"] = np.abs(timegraph["Number of Negative words"])
+            
+            fig, ax = plt.subplots(figsize=(10, 7))
+
+            # Add x-axis and y-axis
+            ax.plot(timegraph["Date"],
+                    timegraph["score"],
+                    color="purple")
+
+            # Set title and labels for axes
+            ax.set(xlabel="Date",
+                ylabel="Depression Score",
+                title="Days that have depression and positivity?")
+
+            plt.axhline(y=0.0, color='r', linestyle='-')
+            plt.setp(ax.get_xticklabels(), rotation=45)
+            plt.savefig(img, format="png")
+            plt.close()
+            img.seek(0)
+            plot_url = base64.b64encode(img.getvalue()).decode("utf8")
+
+            return render_template("Results.html", user_image = plot_url)
+
+
+
+
+        if request.form["submit_button"] == "Total number of positive and negative words":
+            timegraph=tweets_df1[["score", "Datetime", "Pos", "Neg", "number_of_words"]]
+            timegraph.rename(columns={"Pos": "Number of Positive words", "Neg": "Number of Negative words", "number_of_words":"Total number of words", "Datetime":"Date"}, inplace=True)
+
+
+            for index in timegraph.iterrows():
+                timegraph["Date"] = timegraph["Date"].astype(str).str[:10]
+                timegraph["Date"] = timegraph["Date"].str.replace("T"," ")
+                timegraph["Date"] = timegraph["Date"].str.replace("-","/")
+                timegraph.sort_values(by="Date", inplace=True)
+                timegraph["Number of Negative words"] = np.abs(timegraph["Number of Negative words"])
+
+            
+            timegraph.plot(x="Date", y=["Total number of words", "Number of Positive words","Number of Negative words"], kind="bar", figsize=(8,7))
+            plt.xticks(rotation=45)
+            plt.savefig(img, format="png")
+            plt.close()
+            img.seek(0)
+            plot_url = base64.b64encode(img.getvalue()).decode("utf8")
+
+            return render_template("Results.html", user_image = plot_url)
         
-        # Display the generated image:
-        if Cloudpos.shape[0] == 0:
-            print("")
-        else:
-            poswordcloud = WordCloud(stopwords=stopwords).generate(str(Cloudpos))
-            plt.imshow(poswordcloud, interpolation='bilinear')
-            plt.axis("off")
-            plt.show()
-
-        if Cloudneg.shape[0] == 0:
-            flash('No Depressive words found', 'category1')
-        else:
-            negwordcloud = WordCloud(stopwords=stopwords).generate(str(Cloudneg))
-            plt.imshow(negwordcloud, interpolation='bilinear')
-            plt.axis("off")
-            plt.show()
         
-
-
-        timegraph=tweets_df1[['score','Datetime','Pos','Neg','number_of_words']]
-        timegraph.rename(columns={'Pos': 'Number of Positive words', 'Neg': 'Number of Negative words','number_of_words':'Total number of words'}, inplace=True)
-
-
-        for index in timegraph.iterrows():
-            timegraph['Datetime'] = timegraph['Datetime'].astype(str).str[:10]
-            timegraph['Datetime'] = timegraph['Datetime'].str.replace('T',' ')
-            timegraph['Datetime'] = timegraph['Datetime'].str.replace('-','/')
-            timegraph = timegraph.loc[timegraph['score']  != 0]
-            timegraph['Number of Negative words'] = np.abs(timegraph['Number of Negative words'])
-
+        #return to the bunch of button page
+        elif request.form["submit_button"]=="Back to graph":
+            return render_template("Graph.html")
         
-        fig, ax = plt.subplots(figsize=(10, 10))
-
-        # Add x-axis and y-axis
-        ax.plot(timegraph['Datetime'],
-                timegraph['score'],
-                color='purple')
-
-        # Set title and labels for axes
-        ax.set(xlabel="Date",
-            ylabel="Depression Score",
-            title="Days that have depression and positivity?")
-
-        plt.axhline(y=0.0, color='r', linestyle='-')
-        plt.setp(ax.get_xticklabels(), rotation=45)
-        plt.show()
-
-
-        timegraph.plot(x="Datetime", y=["Total number of words", "Number of Positive words","Number of Negative words"], kind="bar")
-        plt.xticks(rotation=45)
-        plt.show()
- 
-
-        finalizedresult='Done'
-
-        return render_template("home.html",message=finalizedresult)
-    return render_template('home.html')
-
-@app.route('/Results',methods=["GET"], endpoint='Results')
-def Results():
-    return render_template('Results.html')
-
+    return render_template("Graph.html")
 
 if __name__ == "__main__":
     app.run()
-
-
-
-
-
